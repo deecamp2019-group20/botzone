@@ -1,0 +1,4 @@
+*.h5
+__pycache__
+*.pyd
+*.so
