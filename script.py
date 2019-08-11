@@ -42,10 +42,29 @@ class GameState():
         self.last_last_move_ = np.zeros(15, dtype=int) # 上上个出牌，不管有效与否
         self.player_role = -1  # 当前玩家编号，-1表示主动权
         self.left_cards = [0, 0, 0]  # 三家剩余牌数量
+        self.my_last_move = None # 自己上一回合的出牌
 
-    def convert_to_payload(self):
-        pass
-        
+    def dump_to_payload(self):
+        def list_to_card(lst):
+            c = []
+            all_card = [i for i in range(3, 14)] + [1,2,14,15]
+            for i, n in enumerate(all_card):
+                c.extend([n]*all_card[i])
+            return c
+
+        payload = {'pid': (self.player_role+1)%3}
+        if self.player_role == 0:
+            payload['last_taken'] = {0: list_to_card(self.last_move_), 1: list_to_card(self.my_last_move), 2: list_to_card(self.last_last_move_)}
+            payload['history'] = {0: self.up_out, 1: self.self_out, 2: self.down_out}
+        if self.player_role == 1:
+            payload['last_taken'] = {0: list_to_card(self.last_last_move_), 1: list_to_card(self.last_move_), 2: list_to_card(self.my_last_move)}
+            payload['history'] = {0: self.down_out, 1: self.up_out, 2: self.self_out}
+        if self.player_role == 2:
+            payload['last_take'] = {0: list_to_card(self.my_last_move), 1: list_to_card(self.last_last_move_), 2: list_to_card(self.last_move_)}
+            payload['history'] = {0: self.self_out, 1: self.down_out, 2: self.up_out}
+        payload['cur_cards'] = list_to_card(self.hand)
+        payload['left'] = {0: self.left_cards[1], 1: self.left_cards[2], 2: self.left_cards[0]}
+        return payload
 
 def get_initial_info(r):
     # 判断自己是什么身份，地主0 or 农民甲1 or 农民乙2
@@ -73,14 +92,13 @@ def cardno_to_list(cards):
     return lst
 
 def choose_action(state):
-    move_list = get_moves(state.hand, state.last_move)
-    #move = model.choose_action(state_to_tensor(state), move_list, ignore_eps=True)
+    #move = model.choose_action(state_to_tensor(state), get_moves(state.hand, state.last_move), ignore_eps=True)
     move = rulebased_choose_action(state)
     return move
 
 
 def choose_action_by_payload(payload):
-    return None
+    return []
 
 full_input = json.loads(input())
 requ = full_input["requests"]
@@ -129,12 +147,15 @@ state.self_out = (zeros+history[pid::3].sum(axis=0)).tolist()
 state.last_move = last_move
 state.other_hand = (np.array([4] * 13 + [1, 1], dtype=int) - state.hand - state.out).tolist()
 state.last_pid = last_pid
-#state.last_move_, state.last_last_move_ = history[-1], history[-2]
-state.left_cards = [20-history[0::3].sum(), 17-history[1::3].sum(), 17-history[1::3].sum()]
+state.last_last_move_ = cardno_to_list(requ[-1]['history'][0])
+state.last_move_ = cardno_to_list(requ[-1]['history'][1])
+state.left_cards = [20 - history[0::3].sum(), 17 - history[1::3].sum(), 17 - history[1::3].sum()]
+if len(history) >= 3:
+    state.my_last_move = history[-3].tolist()
 
 # policy
-move = choose_action(state)  # By GameState
-#move = choose_action_by_payload(state.convert_to_payload)   # By Payload
+#move = choose_action(state)  # By GameState
+move = choose_action_by_payload(state.dump_to_payload())   # By Payload
 
 # output
 tmp = [[] for _ in range(15)]
