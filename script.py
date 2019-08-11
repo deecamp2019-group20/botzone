@@ -98,6 +98,7 @@ def choose_action(state):
 
 
 def choose_action_by_payload(payload):
+    #返回15维向量，表示 3/4/5...出多少个。
     return []
 
 full_input = json.loads(input())
